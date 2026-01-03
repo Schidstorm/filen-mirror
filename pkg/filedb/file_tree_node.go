@@ -159,9 +159,10 @@ func (n *fileTreeNodeInternal) invalidatePathCache() {
 }
 
 func (n *fileTreeNodeInternal) getPathParts() []string {
+	parts := []string{}
 	if n.Parent != nil {
-		return append(n.Parent.getPathParts(), n.Name.String())
-	} else {
-		return []string{n.Name.String()}
+		parts = n.Parent.getPathParts()
 	}
+
+	return append(parts, n.Name.String())
 }

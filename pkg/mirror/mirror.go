@@ -304,7 +304,7 @@ func (m *FilenMirror) filenEventHandler() {
 				log.Warn().Msgf("Failed to get path for UUID: %s", e.UUID)
 				continue
 			}
-			m.osDb.CreateDir(filedb.UuidFromString(e.UUID), filedb.UuidFromString(parent), parentPath+"/"+name)
+			m.osDb.CreateDir(filedb.UuidFromString(e.UUID), filedb.UuidFromString(parent), name)
 			localPath := m.syncDir + "/" + parentPath + "/" + name
 			err := executer.Current.EnsureDir(localPath)
 			if err != nil {
@@ -342,7 +342,7 @@ func (m *FilenMirror) ensureLocalFile(uuid, parent filedb.Uuid, name string, mod
 		return
 	}
 	localPath := m.syncDir + "/" + parentPath + "/" + name
-	m.osDb.CreateFile(uuid, parent, parentPath+"/"+name, modTime, hash)
+	m.osDb.CreateFile(uuid, parent, name, modTime, hash)
 
 	m.taskRunner.Schedule(TaskFunc(func() error {
 		return executer.Current.EnsureFile(localPath, modTime, hash, func() (io.ReadCloser, error) {
