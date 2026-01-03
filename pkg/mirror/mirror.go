@@ -54,12 +54,12 @@ func (m *FilenMirror) fullSyncOnce(ctx context.Context) error {
 		return err
 	}
 
-	diffChannel := filedb.Diff(m.osDb, remoteDb)
+	diffChannel := filedb.StartDiff(m.osDb, remoteDb)
 	m.applyDiffItems(diffChannel, remoteDb)
 
 	m.osDb.CopyFrom(remoteDb)
 
-	err = m.cleanupLocalFs(remoteDb.GetPathToUuidMap())
+	err = m.removeLocalFilesNotInDb(remoteDb.GetPathToUuidMap())
 	if err != nil {
 		return err
 	}
@@ -88,7 +88,7 @@ func (m *FilenMirror) removeLocalDbItemsNotInFs(paths map[string]filedb.Uuid) er
 	return nil
 }
 
-func (m *FilenMirror) cleanupLocalFs(items map[string]filedb.Uuid) error {
+func (m *FilenMirror) removeLocalFilesNotInDb(items map[string]filedb.Uuid) error {
 	err := fastReadDirDirs(m.syncDir, func(p string, isDir bool, continueDescending *bool) {
 		*continueDescending = true
 		relPath := strings.TrimPrefix(p, m.syncDir+"/")
@@ -227,8 +227,8 @@ func (m *FilenMirror) Start() {
 
 	m.fullSync()
 	m.filenEventListener.Start()
-	go m.filenEventHandler()
-	go m.periodicFullSync()
+	go m.runFilenEventHandler()
+	go m.runPeriodicFullSync()
 }
 
 func (m *FilenMirror) fullSync() {
@@ -243,7 +243,7 @@ func (m *FilenMirror) fullSync() {
 	}
 }
 
-func (m *FilenMirror) periodicFullSync() {
+func (m *FilenMirror) runPeriodicFullSync() {
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
 
@@ -253,7 +253,7 @@ func (m *FilenMirror) periodicFullSync() {
 	}
 }
 
-func (m *FilenMirror) filenEventHandler() {
+func (m *FilenMirror) runFilenEventHandler() {
 	for {
 		evt, ok := m.filenEventListener.NextEvent()
 		if !ok {

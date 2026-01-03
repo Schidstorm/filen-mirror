@@ -20,7 +20,7 @@ func (l nodeList) Swap(i, j int) {
 	l[i], l[j] = l[j], l[i]
 }
 
-func Diff(is, should *FileTree) chan DiffItem {
+func StartDiff(is, should *FileTree) chan DiffItem {
 	diffChannel := make(chan DiffItem, 100)
 	go diff(is, should, diffChannel)
 

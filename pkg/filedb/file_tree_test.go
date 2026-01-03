@@ -27,7 +27,7 @@ func TestDiffRemovedFile(t *testing.T) {
 
 	tree2.Remove(filedb.UuidFromString("file1"))
 	var numDiffs int
-	for diffItem := range filedb.Diff(tree1, tree2) {
+	for diffItem := range filedb.StartDiff(tree1, tree2) {
 		numDiffs++
 		d, ok := diffItem.(filedb.DiffRemoved)
 		assert.True(t, ok)
@@ -42,7 +42,7 @@ func TestDiffRemovedDir(t *testing.T) {
 
 	tree2.Remove(filedb.UuidFromString("dir2"))
 	var numDiffs int
-	for diffItem := range filedb.Diff(tree1, tree2) {
+	for diffItem := range filedb.StartDiff(tree1, tree2) {
 		numDiffs++
 		d, ok := diffItem.(filedb.DiffRemoved)
 		assert.True(t, ok)
@@ -57,7 +57,7 @@ func TestDiffMoveDir(t *testing.T) {
 
 	tree2.Move(filedb.UuidFromString("dir2"), filedb.NilUuid, "moved-dir")
 	var numDiffs int
-	for diffItem := range filedb.Diff(tree1, tree2) {
+	for diffItem := range filedb.StartDiff(tree1, tree2) {
 		numDiffs++
 		d, ok := diffItem.(filedb.DiffModified)
 		assert.True(t, ok)
@@ -70,7 +70,7 @@ func TestDiffMoveDir(t *testing.T) {
 
 func BenchmarkDiff(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		for range filedb.Diff(benchmarkTree1, benchmarkTree2) {
+		for range filedb.StartDiff(benchmarkTree1, benchmarkTree2) {
 
 		}
 	}
@@ -79,7 +79,7 @@ func BenchmarkDiff(b *testing.B) {
 func BenchmarkDiffWithNil(b *testing.B) {
 	nilTree := filedb.NewFileTree()
 	for i := 0; i < b.N; i++ {
-		for range filedb.Diff(benchmarkTree1, nilTree) {
+		for range filedb.StartDiff(benchmarkTree1, nilTree) {
 		}
 	}
 }
