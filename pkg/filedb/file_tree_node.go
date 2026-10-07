@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
-	"strings"
 	"time"
 )
 
@@ -145,8 +144,11 @@ func (n *fileTreeNodeInternal) getParentUuid() Uuid {
 
 func (n *fileTreeNodeInternal) GetPath() string {
 	if n.path == "" {
-		parts := n.getPathParts()
-		n.path = strings.Join(parts, "/")
+		if n.Parent == nil {
+			n.path = n.Name.String()
+		} else {
+			n.path = n.Parent.GetPath() + "/" + n.Name.String()
+		}
 	}
 	return n.path
 }
@@ -156,13 +158,4 @@ func (n *fileTreeNodeInternal) invalidatePathCache() {
 	for _, child := range n.Children {
 		child.invalidatePathCache()
 	}
-}
-
-func (n *fileTreeNodeInternal) getPathParts() []string {
-	parts := []string{}
-	if n.Parent != nil {
-		parts = n.Parent.getPathParts()
-	}
-
-	return append(parts, n.Name.String())
 }

@@ -44,6 +44,7 @@ func (e *FilenEventListener) Start() {
 	e.conn.Start()
 
 	go func() {
+		defer close(e.eventChan)
 		for {
 			msg, ok := e.conn.NextMessage()
 			if !ok {
@@ -60,7 +61,6 @@ func (e *FilenEventListener) NextEvent() (TypedEvent, bool) {
 }
 
 func (e *FilenEventListener) Close() error {
-	defer close(e.eventChan)
 	return e.conn.Close()
 }
 
@@ -86,6 +86,10 @@ func (e *FilenEventListener) handleMessage(message []byte) {
 }
 
 func (e *FilenEventListener) handleMessagePayload(payload []byte) {
+	if len(payload) == 0 {
+		log.Warn().Msg("Received empty message payload")
+		return
+	}
 	messageType := payload[0]
 	messageData := payload[1:]
 
@@ -189,6 +193,7 @@ func (e *FilenEventListener) handleHandshake(payload []byte) {
 	hp, err := parseHandshakePayload(payload)
 	if err != nil {
 		log.Warn().Err(err).Msg("Failed to parse handshake payload")
+		return
 	}
 	e.conn.SetPingInterval(time.Duration(hp.PingInterval) * time.Millisecond)
 

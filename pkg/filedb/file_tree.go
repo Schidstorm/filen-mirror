@@ -16,8 +16,13 @@ func NewFileTree() *FileTree {
 }
 
 func (ft *FileTree) CopyFrom(other *FileTree) {
-	ft.nodes = make(map[Uuid]*fileTreeNodeInternal)
-	maps.Copy(ft.nodes, other.nodes)
+	if ft == other {
+		return
+	}
+
+	nodes := make(map[Uuid]*fileTreeNodeInternal, len(other.nodes))
+	maps.Copy(nodes, other.nodes)
+	ft.nodes = nodes
 }
 
 func (ft *FileTree) EnsureItems(items []FileTreeNode) {

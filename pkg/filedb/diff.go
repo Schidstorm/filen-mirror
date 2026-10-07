@@ -4,20 +4,20 @@ import (
 	"sort"
 )
 
-func toDiffSlice(ft *FileTree) []*fileTreeNodeInternal {
-	result := make([]*fileTreeNodeInternal, 0, len(ft.nodes))
-	for _, node := range ft.nodes {
-		result = append(result, node)
-	}
-	return result
-}
-
 type nodeList []*fileTreeNodeInternal
 
 func (l nodeList) Len() int           { return len(l) }
 func (l nodeList) Less(i, j int) bool { return CompareUuids(&l[i].Uuid, &l[j].Uuid) < 0 }
 func (l nodeList) Swap(i, j int) {
 	l[i], l[j] = l[j], l[i]
+}
+
+func toDiffSlice(ft *FileTree) nodeList {
+	result := make(nodeList, 0, len(ft.nodes))
+	for _, node := range ft.nodes {
+		result = append(result, node)
+	}
+	return result
 }
 
 func StartDiff(is, should *FileTree) chan DiffItem {
@@ -30,72 +30,74 @@ func StartDiff(is, should *FileTree) chan DiffItem {
 func diff(is, should *FileTree, diffChannel chan DiffItem) {
 	defer close(diffChannel)
 
-	isNodes := nodeList(toDiffSlice(is))
-	sort.Sort(isNodes)
-	shouldNodes := nodeList(toDiffSlice(should))
-	sort.Sort(shouldNodes)
-
-	i, j := 0, 0
-	for i < len(isNodes) && j < len(shouldNodes) {
-		isNode := isNodes[i]
-		shouldNode := shouldNodes[j]
-
-		if isNode.Uuid == shouldNode.Uuid {
-			var unequal bool
-			if !isNode.Modtime.Equal(shouldNode.Modtime) {
-				unequal = true
-			} else if isNode.getParentUuid() != shouldNode.getParentUuid() {
-				unequal = true
-			} else if isNode.IsDir != shouldNode.IsDir {
-				unequal = true
-			} else if isNode.Hash != shouldNode.Hash {
-				unequal = true
-			}
-
-			if unequal {
-				oldPath := isNode.GetPath()
-				newPath := shouldNode.GetPath()
-				diffChannel <- DiffModified{
-					Uuid:    isNode.Uuid,
-					OldPath: oldPath,
-					NewPath: newPath,
-				}
-			}
-			i++
-			j++
-		} else if CompareUuids(&isNode.Uuid, &shouldNode.Uuid) < 0 {
-			oldPath := isNode.GetPath()
-			diffChannel <- DiffRemoved{
-				Uuid: isNode.Uuid,
-				Path: oldPath,
-			}
-			i++
-		} else {
-			newPath := shouldNode.GetPath()
+	if len(is.nodes) == 0 {
+		shouldNodes := toDiffSlice(should)
+		sort.Sort(shouldNodes)
+		for _, node := range shouldNodes {
 			diffChannel <- DiffAdded{
-				Uuid: shouldNode.Uuid,
-				Path: newPath,
+				Uuid: node.Uuid,
+				Path: node.GetPath(),
 			}
-			j++
+		}
+		return
+	}
+
+	if len(should.nodes) == 0 {
+		isNodes := toDiffSlice(is)
+		sort.Sort(isNodes)
+		for _, node := range isNodes {
+			diffChannel <- DiffRemoved{
+				Uuid: node.Uuid,
+				Path: node.GetPath(),
+			}
+		}
+		return
+	}
+
+	var changes nodeList
+	for uuid, isNode := range is.nodes {
+		shouldNode, exists := should.nodes[uuid]
+		if !exists {
+			changes = append(changes, isNode)
+			continue
+		}
+
+		if !isNode.Modtime.Equal(shouldNode.Modtime) ||
+			isNode.getParentUuid() != shouldNode.getParentUuid() ||
+			isNode.IsDir != shouldNode.IsDir ||
+			isNode.Hash != shouldNode.Hash {
+			changes = append(changes, isNode)
 		}
 	}
 
-	for i < len(isNodes) {
-		oldPath := isNodes[i].GetPath()
-		diffChannel <- DiffRemoved{
-			Uuid: isNodes[i].Uuid,
-			Path: oldPath,
+	for uuid, shouldNode := range should.nodes {
+		if _, exists := is.nodes[uuid]; !exists {
+			changes = append(changes, shouldNode)
 		}
-		i++
 	}
 
-	for j < len(shouldNodes) {
-		newPath := shouldNodes[j].GetPath()
-		diffChannel <- DiffAdded{
-			Uuid: shouldNodes[j].Uuid,
-			Path: newPath,
-		}
+	sort.Sort(changes)
 
-		j++
+	for _, node := range changes {
+		isNode, existsInIs := is.nodes[node.Uuid]
+		shouldNode, existsInShould := should.nodes[node.Uuid]
+		switch {
+		case !existsInIs:
+			diffChannel <- DiffAdded{
+				Uuid: node.Uuid,
+				Path: shouldNode.GetPath(),
+			}
+		case !existsInShould:
+			diffChannel <- DiffRemoved{
+				Uuid: node.Uuid,
+				Path: isNode.GetPath(),
+			}
+		default:
+			diffChannel <- DiffModified{
+				Uuid:    node.Uuid,
+				OldPath: isNode.GetPath(),
+				NewPath: shouldNode.GetPath(),
+			}
+		}
 	}
 }

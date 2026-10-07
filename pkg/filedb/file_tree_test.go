@@ -68,6 +68,63 @@ func TestDiffMoveDir(t *testing.T) {
 	assert.Equal(t, 1, numDiffs)
 }
 
+func TestGetPathRebuildsCacheAfterAncestorMove(t *testing.T) {
+	tree := generateTestTree()
+	fileUuid := filedb.UuidFromString("file1")
+
+	path, ok := tree.GetPath(fileUuid)
+	assert.True(t, ok)
+	assert.Equal(t, "dir1/dir2/file1.txt", path)
+
+	tree.Move(filedb.UuidFromString("dir1"), filedb.NilUuid, "renamed-dir")
+
+	path, ok = tree.GetPath(fileUuid)
+	assert.True(t, ok)
+	assert.Equal(t, "renamed-dir/dir2/file1.txt", path)
+}
+
+func TestDiffResultsAreSortedByUuid(t *testing.T) {
+	tree1 := filedb.NewFileTree()
+	tree1.CreateFile(filedb.UuidFromString("a"), filedb.NilUuid, "a", time.Unix(0, 0), "")
+	tree1.CreateFile(filedb.UuidFromString("c"), filedb.NilUuid, "c", time.Unix(0, 0), "")
+
+	tree2 := filedb.NewFileTree()
+	tree2.CreateFile(filedb.UuidFromString("b"), filedb.NilUuid, "b", time.Unix(0, 0), "")
+	tree2.CreateFile(filedb.UuidFromString("c"), filedb.NilUuid, "c", time.Unix(1, 0), "")
+
+	var uuids []filedb.Uuid
+	for diffItem := range filedb.StartDiff(tree1, tree2) {
+		switch item := diffItem.(type) {
+		case filedb.DiffAdded:
+			uuids = append(uuids, item.Uuid)
+		case filedb.DiffRemoved:
+			uuids = append(uuids, item.Uuid)
+		case filedb.DiffModified:
+			uuids = append(uuids, item.Uuid)
+		default:
+			t.Fatalf("unexpected diff item type %T", diffItem)
+		}
+	}
+
+	assert.Equal(t, []filedb.Uuid{
+		filedb.UuidFromString("a"),
+		filedb.UuidFromString("b"),
+		filedb.UuidFromString("c"),
+	}, uuids)
+}
+
+func TestCopyFromPreservesSelfAndIndependentMaps(t *testing.T) {
+	source := generateTestTree()
+	source.CopyFrom(source)
+	assert.Contains(t, source.GetPathToUuidMap(), "dir1/dir2/file1.txt")
+
+	destination := filedb.NewFileTree()
+	destination.CopyFrom(source)
+	destination.Remove(filedb.UuidFromString("file1"))
+	_, sourceStillHasFile := source.GetNode(filedb.UuidFromString("file1"))
+	assert.True(t, sourceStillHasFile)
+}
+
 func BenchmarkDiff(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		for range filedb.StartDiff(benchmarkTree1, benchmarkTree2) {
