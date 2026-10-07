@@ -1,0 +1,24 @@
+apiVersion: home.schidlow.ski/v1
+kind: Application
+metadata:
+  name: filen-mirror
+spec:
+  image: registry.schidlow.ski/filen-mirror:${VERSION}
+  env:
+    FILEN_EMAIL: dominik@schidlowski.eu
+  podSecurityContext:
+    fsGroup: 10001
+    fsGroupChangePolicy: OnRootMismatch
+  ports:
+    - link: true
+      port: 8080
+      protocol: tcp
+      url: https://email.schidlow.ski
+  volumes:
+    - name: data
+      container_path: /data
+      kind: private
+      size: 150Gi
+  secret:
+    FILEN_PASSWORD: filen_mirror/password
+    TOTP_SECRET: filen_mirror/totp_secret
